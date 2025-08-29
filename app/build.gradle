@@ -2,12 +2,12 @@ apply plugin: 'com.android.application'
 
 android {
     namespace 'com.ckdplanner.mobile'
-    compileSdkVersion 34
+    compileSdk 34
 
     defaultConfig {
         applicationId "com.ckdplanner.mobile"
-        minSdkVersion 23
-        targetSdkVersion 34
+        minSdk 23
+        targetSdk 34
         versionCode 1
         versionName "1.0"
     }
