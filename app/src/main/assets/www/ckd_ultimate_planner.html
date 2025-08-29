@@ -1,0 +1,713 @@
+<!DOCTYPE html>
+<html lang="ur" dir="rtl">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>CKD + High BP: Ultimate Diet & Labs Planner</title>
+
+<!-- CDN libs (for advanced functions) -->
+<link rel="preconnect" href="https://cdn.jsdelivr.net">
+<script src="libs/chart.min.js"></script>
+<script src="libs/xlsx.full.min.js"></script>
+<script src="libs/pdf.min.js"></script>
+<script src="libs/tesseract.min.js"></script>
+<script src="libs/papaparse.min.js"></script>
+
+<style>
+:root{
+  --bg:#f6f8fb; --card:#ffffff; --ink:#0f172a; --muted:#64748b;
+  --accent:#0ea5e9; --border:#e2e8f0; --ok:#10b981; --warn:#f59e0b; --bad:#ef4444;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.6 system-ui,"Noto Nastaliq Urdu",Arial}
+header{position:sticky;top:0;background:var(--card);border-bottom:1px solid var(--border);z-index:20}
+.container{max-width:1200px;margin:auto;padding:14px}
+h1{margin:6px 0 2px;font-size:22px}
+.tabs{display:flex;gap:8px;flex-wrap:wrap;margin:8px 0}
+.tab{padding:8px 12px;border:1px solid var(--border);background:var(--card);border-radius:12px;cursor:pointer}
+.tab.active{border-color:var(--accent);box-shadow:0 1px 0 rgba(0,0,0,.05);color:#075985}
+.grid{display:grid;gap:12px}
+@media(min-width:980px){.grid.cols-2{grid-template-columns:1fr 1fr}}
+.card{background:var(--card);border:1px solid var(--border);border-radius:16px;padding:12px}
+.card h2,.card h3{margin:6px 0 10px}
+.row{display:flex;gap:8px;flex-wrap:wrap}
+select,input,button,textarea{font:inherit}
+input[type="text"],input[type="number"],input[type="date"],select,textarea{
+  width:100%;padding:8px;border:1px solid var(--border);border-radius:10px;background:#fff
+}
+.badge{display:inline-block;padding:2px 8px;border-radius:999px;font-size:12px;border:1px solid var(--border);margin:0 2px}
+.badge.ok{background:#ecfdf5;color:#065f46}
+.badge.warn{background:#fffbeb;color:#92400e}
+.badge.bad{background:#fef2f2;color:#991b1b}
+.kv{display:grid;grid-template-columns:140px 1fr;gap:8px;margin:6px 0}
+hr{border:0;border-top:1px solid var(--border);margin:10px 0}
+table{width:100%;border-collapse:collapse}
+th,td{border:1px solid var(--border);padding:8px;text-align:center}
+th{background:#eef2ff}
+.btn{padding:8px 12px;border:1px solid var(--border);background:#fff;border-radius:10px;cursor:pointer}
+.btn.primary{background:var(--accent);color:#fff;border-color:var(--accent)}
+.btn.danger{background:#fee2e2;color:#991b1b;border-color:#fecaca}
+small,.muted{color:var(--muted)}
+.flex-between{display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap}
+input[type="color"]{padding:0;border:none;background:none}
+.tag{display:inline-flex;align-items:center;gap:6px;padding:4px 8px;border:1px solid var(--border);border-radius:999px;background:#fff;margin:4px}
+.switch{display:inline-flex;gap:6px;align-items:center}
+.hidden{display:none!important}
+.recipe{border:1px dashed var(--border);border-radius:12px;padding:10px;margin:8px 0;background:#fff}
+.recipe h4{margin:0 0 6px}
+ul.clean{list-style:disc;margin:0 0 0 20px;padding:0}
+.canvasWrap{height:300px;border:1px solid var(--border);border-radius:10px;background:#fff;overflow:hidden}
+.stat{display:grid;grid-template-columns:120px 1fr 140px;gap:6px;align-items:center;padding:6px;border-bottom:1px dashed var(--border)}
+.stat:last-child{border:none}
+.stat .name{font-weight:600}
+.stat .trend{font-size:12px}
+header .titleRow{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+</style>
+</head>
+<body>
+<header>
+  <div class="container">
+    <div class="titleRow">
+      <h1>CKD + High BP: Ultimate Planner (Salt-Free)</h1>
+      <div class="row">
+        <label class="switch"><input id="langToggle" type="checkbox"> <span id="langLbl">اردو</span></label>
+        <button class="btn" onclick="print()">🖨️ پرنٹ</button>
+      </div>
+    </div>
+    <div class="tabs">
+      <button class="tab active" data-tab="dashboard">📊 Dashboard</button>
+      <button class="tab" data-tab="planner">🍽️ Meal Planner</button>
+      <button class="tab" data-tab="zones">🧾 Ingredients Zones</button>
+      <button class="tab" data-tab="shop">🛒 Snack/Shop</button>
+      <button class="tab" data-tab="labs">📈 Medical Tracker</button>
+      <button class="tab" data-tab="importer">📥 Import / Auto-Extract</button>
+      <button class="tab" data-tab="manage">🧰 Manage Data</button>
+      <button class="tab" data-tab="settings">🎨 Settings</button>
+    </div>
+  </div>
+</header>
+
+<main class="container">
+
+  <!-- ===== DASHBOARD ===== -->
+  <section id="dashboard" class="card">
+    <h2>Overview</h2>
+    <div class="grid cols-2">
+      <div class="card">
+        <h3>Latest Labs (status)</h3>
+        <div id="stats"></div>
+      </div>
+      <div class="card">
+        <h3>Quick Trend</h3>
+        <div class="row" style="margin-bottom:6px">
+          <select id="dashMetric">
+            <option value="potassium">Potassium</option>
+            <option value="urea">Blood Urea</option>
+            <option value="bun">BUN</option>
+            <option value="creatinine">Creatinine</option>
+            <option value="egfr">eGFR</option>
+            <option value="sodium">Sodium</option>
+            <option value="crp">CRP</option>
+            <option value="calcium">Calcium</option>
+          </select>
+          <button class="btn" id="dashPlot">Plot</button>
+        </div>
+        <div class="canvasWrap"><canvas id="dashChart" width="900" height="280"></canvas></div>
+        <div id="dietHint" class="muted" style="margin-top:6px"></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===== MEAL PLANNER ===== -->
+  <section id="planner" class="card hidden">
+    <h2>Meal Planner</h2>
+    <div class="grid cols-2">
+      <div class="card">
+        <h3>Choose Meal & Filters</h3>
+        <div class="kv">
+          <div>Meal</div>
+          <div>
+            <select id="mealSelect">
+              <option value="breakfast">ناشتہ</option>
+              <option value="lunch">دوپہر</option>
+              <option value="snack">شام</option>
+              <option value="dinner">رات</option>
+            </select>
+          </div>
+          <div>Filters</div>
+          <div class="row" id="filterTags"></div>
+          <div>Zones</div>
+          <div>
+            <label class="tag"><input type="checkbox" class="zoneFilter" value="green" checked> Green</label>
+            <label class="tag"><input type="checkbox" class="zoneFilter" value="yellow" checked> Yellow</label>
+            <label class="tag"><input type="checkbox" class="zoneFilter" value="red"> Red (hidden)</label>
+          </div>
+          <div>Latest Lab hint</div>
+          <div id="labHint" class="muted">—</div>
+        </div>
+        <button class="btn primary" id="runSearch">🔎 Show Best Recipes</button>
+      </div>
+      <div class="card">
+        <h3>Best Matches</h3>
+        <div id="recipesWrap"></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===== ZONES ===== -->
+  <section id="zones" class="card hidden">
+    <h2>Ingredients Zones</h2>
+    <div class="grid cols-2">
+      <div class="card"><h3>🟢 Green (3–5×/week)</h3><table id="tblGreen"></table></div>
+      <div class="card"><h3>🟡 Yellow (2–3×/week)</h3><table id="tblYellow"></table></div>
+      <div class="card"><h3>🔴 Red (Never)</h3><table id="tblRed"></table></div>
+    </div>
+  </section>
+
+  <!-- ===== SHOP ===== -->
+  <section id="shop" class="card hidden">
+    <h2>Snack/Shop (Pakistan)</h2>
+    <div class="grid cols-2">
+      <div class="card"><h3>Biscuits & Snacks</h3><ul id="shopList" class="clean"></ul></div>
+      <div class="card">
+        <h3>Protein / Oils / Cooking</h3>
+        <ul id="proteinList" class="clean"></ul><hr/>
+        <ul class="clean">
+          <li>Boil/Steam/Grill (light oil 1–2 tsp)</li>
+          <li>Shallow sauté; **no tomato, no heavy masala**</li>
+          <li>Deep-fry ❌</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===== LABS ===== -->
+  <section id="labs" class="card hidden">
+    <h2>Medical Tracker</h2>
+    <div class="grid cols-2">
+      <div class="card">
+        <h3>Add / Update Values</h3>
+        <div class="grid">
+          <div class="kv"><div>Date</div><div><input id="labDate" type="date"></div></div>
+          <div class="kv"><div>Potassium</div><div><input id="labK" type="number" step="0.1"></div></div>
+          <div class="kv"><div>Blood Urea</div><div><input id="labUrea" type="number" step="1"></div></div>
+          <div class="kv"><div>BUN</div><div><input id="labBUN" type="number" step="0.1"></div></div>
+          <div class="kv"><div>Creatinine</div><div><input id="labCr" type="number" step="0.01"></div></div>
+          <div class="kv"><div>eGFR</div><div><input id="labGFR" type="number" step="1"></div></div>
+          <div class="kv"><div>Sodium</div><div><input id="labNa" type="number" step="1"></div></div>
+          <div class="kv"><div>CRP</div><div><input id="labCRP" type="number" step="0.1"></div></div>
+          <div class="kv"><div>Calcium</div><div><input id="labCa" type="number" step="0.1"></div></div>
+          <div class="kv"><div>Notes</div><div><input id="labNotes" type="text"></div></div>
+        </div>
+        <div class="row" style="margin-top:8px">
+          <button class="btn primary" id="saveLab">💾 Save</button>
+          <button class="btn" id="clearLab">🧹 Clear</button>
+        </div>
+        <small class="muted">Saved locally in your browser.</small>
+      </div>
+      <div class="card">
+        <h3>History & Graph</h3>
+        <table id="labTable"></table>
+        <div class="row" style="margin-top:8px">
+          <select id="metricPick">
+            <option value="potassium">Potassium</option>
+            <option value="urea">Blood Urea</option>
+            <option value="bun">BUN</option>
+            <option value="creatinine">Creatinine</option>
+            <option value="egfr">eGFR</option>
+            <option value="sodium">Sodium</option>
+            <option value="crp">CRP</option>
+            <option value="calcium">Calcium</option>
+          </select>
+          <button class="btn" id="plotBtn">📈 Plot</button>
+        </div>
+        <div class="canvasWrap"><canvas id="chart" width="900" height="280"></canvas></div>
+        <div id="dietAdvice" class="muted" style="margin-top:6px"></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===== IMPORT / EXTRACT ===== -->
+  <section id="importer" class="card hidden">
+    <h2>Import / Auto-Extract (PDF, Excel, CSV, TXT, PNG/JPG)</h2>
+    <div class="grid cols-2">
+      <div class="card">
+        <h3>Upload File(s)</h3>
+        <input type="file" id="filePick" multiple accept=".pdf,.xlsx,.xls,.csv,.txt,.png,.jpg,.jpeg,image/*,application/pdf"/>
+        <p class="muted">We’ll OCR images (Tesseract), parse PDFs (PDF.js), Excel (SheetJS), CSV/TXT (PapaParse/text) — then extract lab names/values/dates.</p>
+        <button class="btn primary" id="runExtract">🔎 Extract & Preview</button>
+      </div>
+      <div class="card">
+        <h3>Preview & Confirm</h3>
+        <table id="extractTable"></table>
+        <div class="row" style="margin-top:8px">
+          <button class="btn" id="commitExtract">✅ Add to Labs</button>
+          <button class="btn" id="clearExtract">🧹 Clear</button>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===== MANAGE ===== -->
+  <section id="manage" class="card hidden">
+    <h2>Add / Edit Recipes & Items</h2>
+    <div class="grid cols-2">
+      <div class="card">
+        <h3>New Recipe</h3>
+        <div class="kv"><div>Name (اردو)</div><div><input id="rNameUr" type="text"></div></div>
+        <div class="kv"><div>Name (English)</div><div><input id="rNameEn" type="text"></div></div>
+        <div class="kv"><div>Meal</div><div>
+          <select id="rMeal"><option value="breakfast">Breakfast</option><option value="lunch">Lunch</option><option value="snack">Snack</option><option value="dinner">Dinner</option></select>
+        </div></div>
+        <div class="kv"><div>Zone</div><div>
+          <select id="rZone"><option value="green">Green</option><option value="yellow">Yellow</option><option value="red">Red</option></select>
+        </div></div>
+        <div class="kv"><div>Per-week Max</div><div><input id="rPerWeek" type="number" min="0" max="7" value="3"></div></div>
+        <div class="kv"><div>Tags (comma)</div><div><input id="rTags" type="text" placeholder="honey, decaf, ginger"></div></div>
+        <div class="kv"><div>Ingredients (one per line)</div><div><textarea id="rIngr" rows="5" placeholder="ڈبل روٹی 2 سلائس\nشہد ½ چمچ"></textarea></div></div>
+        <button class="btn primary" id="addRecipe">➕ Add Recipe</button>
+      </div>
+      <div class="card">
+        <h3>Data (inline editable)</h3>
+        <table id="recipeTable"></table>
+        <div class="row" style="margin-top:8px">
+          <button class="btn" id="saveAll">💾 Save All</button>
+          <button class="btn danger" id="resetAll">♻️ Reset to Defaults</button>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===== SETTINGS ===== -->
+  <section id="settings" class="card hidden">
+    <h2>Settings</h2>
+    <div class="grid cols-2">
+      <div class="card">
+        <h3>Theme & Colors</h3>
+        <div class="kv"><div>Accent</div><div><input type="color" id="accentPick" value="#0ea5e9"></div></div>
+        <div class="kv"><div>Background</div><div><input type="color" id="bgPick" value="#f6f8fb"></div></div>
+        <div class="kv"><div>Background Image URL</div><div><input id="bgImg" type="text" placeholder="https://..."></div></div>
+        <button class="btn" id="applyTheme">Apply</button>
+      </div>
+      <div class="card">
+        <h3>Language</h3>
+        <p>اوپر ٹوگل سے اردو/English بدلیں — UI RTL/LTR خودکار ایڈجسٹ ہوگا۔</p>
+        <h3>Data Export/Import</h3>
+        <div class="row">
+          <button class="btn" id="exportJSON">⬇️ Export JSON</button>
+          <input id="importJSON" type="file" accept=".json"/>
+        </div>
+        <small class="muted">All data stays in your browser (localStorage).</small>
+      </div>
+    </div>
+  </section>
+
+</main>
+
+<footer>© CKD Planner — Local only. Educational; not medical advice.</footer>
+
+<script>
+/* ===== Defaults (zones, filters, recipes, shop) ===== */
+const defaults={
+  filters:[
+    {id:'honey',ur:'شہد'},{id:'decaf',ur:'ڈیکاف/سبز چائے'},{id:'ginger',ur:'ادرک'},{id:'garlic',ur:'لہسن'},
+    {id:'ajwain',ur:'اجوائن'},{id:'lemon',ur:'لیموں (قطرے)'},{id:'fish',ur:'مچھلی'},{id:'chicken',ur:'چکن'},{id:'no_salt',ur:'نمک فری'}
+  ],
+  zones:{
+    green:[
+      {item:'ڈبل روٹی (سفید)',qty:'1–2 سلائس',per:'روزانہ 1 بار'},
+      {item:'چپاتی (بغیر نمک)',qty:'1 چھوٹی',per:'روزانہ 1 بار'},
+      {item:'سفید چاول',qty:'½ کپ',per:'ہفتے میں 3–4 بار'},
+      {item:'دلیہ/سوجی/کارن فلور',qty:'½–1 کپ',per:'ہفتے میں 5 بار'},
+      {item:'بند گوبھی/توری/کدو',qty:'ہر ایک ½ کپ',per:'روزانہ'},
+      {item:'گاجر/پھول گوبھی',qty:'2–3 چمچ',per:'3–5 بار'},
+      {item:'چکن بون لیس',qty:'30–40g (صرف 1 وقت)',per:'روزانہ'},
+      {item:'ٹراوٹ فلے',qty:'30g',per:'1–2 بار'},
+      {item:'انڈے کی سفیدی',qty:'1 عدد',per:'3–5 بار'},
+      {item:'Marie/Gluco بسکٹ',qty:'1–2 عدد',per:'روزانہ'},
+      {item:'شہد',qty:'½–1 چمچ',per:'روزانہ'},
+      {item:'جیم (سیب/اسٹرابیری/انناس/پیچ)',qty:'½ چمچ',per:'روزانہ'},
+      {item:'کالی مرچ/ادرک/لہسن',qty:'چٹکی–½ چمچ',per:'ضرورت'},
+      {item:'الائچی/دارچینی/سونف',qty:'1 عدد/چٹکی',per:'3–5 بار'},
+      {item:'زیتون/کارن آئل',qty:'1–2 چائے کے چمچ/دن',per:'روزانہ'},
+      {item:'سبز چائے',qty:'1 کپ',per:'روزانہ 1–2 کپ'}
+    ],
+    yellow:[
+      {item:'دہی (بغیر نمک)',qty:'2–3 چمچ',per:'2–3 بار'},
+      {item:'کھیرا (بغیر چھلکا)',qty:'2–3 قتلے',per:'2–3 بار'},
+      {item:'انگور',qty:'3–4 دانے',per:'2 بار'},
+      {item:'سوجی کا حلوہ',qty:'½ کپ',per:'2 بار'},
+      {item:'پاپ کارن (بغیر نمک)',qty:'1 چھوٹی مٹھی',per:'2 بار'},
+      {item:'لیموں',qty:'3–4 قطرے',per:'3 بار (اگر حساسیت نہیں)'}
+    ],
+    red:[
+      'نمک/اچار/پاپڑ','ٹماٹر','آلو','پالک','بھنڈی','بینگن','مٹر',
+      'کیلا','مالٹا/کینو','انار','کھجور','آم','مٹن/بیف/کلیجی/گردے/مغز',
+      'کریم بسکٹ','چپس/نمکو','سافٹ/انرجی ڈرنکس','کافی زیادہ','ملیٹھّی'
+    ]
+  },
+  shop:{
+    biscuits:['Peek Freans Marie','LU Marie','LU Gluco','Peek Freans Gluco'],
+    snacks:['Plain popcorn (no salt)','Suji halwa (½ cup)','Plain rusk (occasionally)'],
+    protein:['Chicken boneless','Trout fillet (deboned)'],
+    oils:['Olive oil','Corn oil']
+  },
+  recipes:[
+    {id:'b1',meal:'breakfast',zone:'green',perWeekMax:5,nameUr:'ڈبل روٹی + جیم + سبز چائے',nameEn:'Bread+Jam+GreenTea',ingredients:['ڈبل روٹی 2 سلائس','جیم ½ چمچ','سبز/ڈیکاف چائے 1 کپ'],tags:['decaf','no_salt']},
+    {id:'b2',meal:'breakfast',zone:'green',perWeekMax:3,nameUr:'انڈے کی سفیدی + شہد',nameEn:'EggWhite + Honey',ingredients:['انڈے کی سفیدی 1','ڈبل روٹی 1 سلائس','شہد ½ چمچ'],tags:['honey','no_salt']},
+    {id:'b3',meal:'breakfast',zone:'green',perWeekMax:5,nameUr:'دلیہ (پانی) + شہد',nameEn:'Porridge + Honey',ingredients:['دلیہ ¾ کپ','شہد ½ چمچ'],tags:['honey','no_salt']},
+    {id:'l1',meal:'lunch',zone:'green',perWeekMax:3,nameUr:'سبزی پلاو (نمک فری)',nameEn:'Veg Pulao',ingredients:['چاول ½ کپ','بند گوبھی/توری/گاجر 4 چمچ','تیل 1 چائے کا چمچ','کالی مرچ/ادرک چٹکی'],tags:['no_salt','ginger']},
+    {id:'l2',meal:'lunch',zone:'green',perWeekMax:4,nameUr:'چکن + چپاتی + سبزی',nameEn:'Chicken+Roti+Veg',ingredients:['چکن 35g','چپاتی 1 چھوٹی','سبزی 3 چمچ','تیل 1 چائے کا چمچ'],tags:['chicken','no_salt']},
+    {id:'l3',meal:'lunch',zone:'yellow',perWeekMax:2,nameUr:'ٹراوٹ + چاول + سبزی',nameEn:'Trout + Rice + Veg',ingredients:['ٹراوٹ 30g','چاول ½ کپ','سبزی 3 چمچ','ادرک/کالی مرچ'],tags:['fish','ginger','no_salt']},
+    {id:'l4',meal:'lunch',zone:'yellow',perWeekMax:3,nameUr:'دال پتلی + چپاتی',nameEn:'Thin Dal + Roti',ingredients:['دال ½ کپ','چپاتی ½–1','لہسن/اجوائن چٹکی'],tags:['ajwain','garlic','no_salt']},
+    {id:'s1',meal:'snack',zone:'green',perWeekMax:7,nameUr:'بسکٹ + سبز چائے',nameEn:'Biscuits + Tea',ingredients:['Marie/Gluco بسکٹ 2','سبز/ڈیکاف چائے 1 کپ'],tags:['decaf','no_salt']},
+    {id:'s2',meal:'snack',zone:'yellow',perWeekMax:4,nameUr:'دلیہ ½ کپ + شہد',nameEn:'Porridge + Honey',ingredients:['دلیہ ½ کپ','شہد ½ چمچ'],tags:['honey','no_salt']},
+    {id:'s3',meal:'snack',zone:'yellow',perWeekMax:2,nameUr:'سوجی کا حلوہ ½ کپ',nameEn:'Suji Halwa',ingredients:['سوجی ½ کپ','ہلکی چینی/شہد'],tags:['honey']},
+    {id:'d1',meal:'dinner',zone:'green',perWeekMax:5,nameUr:'سوپ (چکن/ٹراوٹ) + کارن فلور',nameEn:'Soup',ingredients:['پانی 200–250ml','چکن/ٹراوٹ 30g','کارن فلور 1–2 چمچ','سبزیاں 3 چمچ','ادرک/کالی مرچ','لیموں 3–4 قطرے (اختیاری)'],tags:['chicken','fish','ginger','no_salt','lemon']},
+    {id:'d2',meal:'dinner',zone:'green',perWeekMax:3,nameUr:'سبزی سالن + چپاتی',nameEn:'Veg Curry + Roti',ingredients:['سبزی ½ کپ','چپاتی 1 چھوٹی','لہسن/ادرک'],tags:['no_salt','garlic','ginger']},
+    {id:'d3',meal:'dinner',zone:'yellow',perWeekMax:2,nameUr:'نرم چاول + سبزی',nameEn:'Soft Rice + Veg',ingredients:['چاول ¼–½ کپ','سبزی 3 چمچ'],tags:['no_salt']}
+  ],
+  labs:[]
+};
+const SKEY='ckd_ultimate_v1';
+let state = JSON.parse(localStorage.getItem(SKEY)||'null') || defaults;
+saveState();
+
+/* ===== Helpers ===== */
+function saveState(){ localStorage.setItem(SKEY, JSON.stringify(state)); refreshAll(); }
+function gid(id){return document.getElementById(id)}
+function bySel(sel){return document.querySelector(sel)}
+function msg(el,txt){el.textContent=txt}
+
+/* ===== Tabs ===== */
+document.querySelectorAll('.tab').forEach(b=>{
+  b.onclick=()=>{
+    document.querySelectorAll('.tab').forEach(x=>x.classList.remove('active')); b.classList.add('active');
+    document.querySelectorAll('main section').forEach(s=>s.classList.add('hidden'));
+    gid(b.dataset.tab).classList.remove('hidden');
+  };
+});
+
+/* ===== Filters & Planner ===== */
+function renderFilters(){
+  const wrap=gid('filterTags'); wrap.innerHTML='';
+  state.filters.forEach(f=>{
+    const lab=document.createElement('label');
+    lab.className='tag';
+    lab.innerHTML=`<input type="checkbox" value="${f.id}"> ${f.ur}`;
+    wrap.appendChild(lab);
+  });
+}
+function latestLabs(){ return state.labs.length? state.labs[state.labs.length-1]: null; }
+function refreshLabHint(){
+  const L=latestLabs(), el=gid('labHint'); if(!el) return;
+  if(!L){ msg(el,'No labs — default rules.'); return; }
+  let tips=[];
+  if(L.potassium>5.0) tips.push('⚠️ K high: limit lemon/dal/cucumber; pre-boil veggies.');
+  if(L.egfr<20) tips.push('⚠️ eGFR low: protein 30–40g/day; salt zero.');
+  if(L.urea>50||L.creatinine>1.2) tips.push('⚠️ Urea/Cr high: thin soups; avoid heavy protein.');
+  msg(el,tips.join(' | ')||'Labs ok.');
+}
+function filterRecipes(){
+  const meal=gid('mealSelect').value;
+  const selected=[...gid('filterTags').querySelectorAll('input:checked')].map(x=>x.value);
+  const zones=[...document.querySelectorAll('.zoneFilter:checked')].map(x=>x.value);
+  const L=latestLabs();
+  return state.recipes.filter(r=>{
+    if(r.meal!==meal) return false;
+    if(!zones.includes(r.zone)) return false;
+    if(selected.length && !selected.every(t=>r.tags?.includes(t))) return false;
+    if(L && Number(L.potassium)>5.0 && (r.tags||[]).includes('lemon')) return false;
+    return true;
+  });
+}
+function renderRecipes(list){
+  const w=gid('recipesWrap'); if(!list.length){w.innerHTML='<div class="muted">کوئی ریکارڈ نہیں — فلٹر کم کریں۔</div>';return;}
+  w.innerHTML=''; list.forEach(r=>{
+    const d=document.createElement('div'); d.className='recipe';
+    const zone = r.zone==='green'?'ok':'warn';
+    d.innerHTML=`<h4>${r.nameUr} <span class="badge ${zone}">${r.zone}</span> <span class="badge ok">Max ${r.perWeekMax||'-'}/wk</span></h4>
+      <ul class="clean">${r.ingredients.map(i=>`<li>${i}</li>`).join('')}</ul>
+      <small class="muted">Tags: ${(r.tags||[]).join(', ')||'—'}</small>`;
+    w.appendChild(d);
+  });
+}
+gid('runSearch').onclick=()=>renderRecipes(filterRecipes());
+
+/* ===== Zones & Shop ===== */
+function buildZoneTables(){
+  gid('tblGreen').innerHTML='<tr><th>آئٹم</th><th>مقدار</th><th>فریکوئنسی</th></tr>'+
+    state.zones.green.map(r=>`<tr><td>${r.item}</td><td>${r.qty}</td><td>${r.per}</td></tr>`).join('');
+  gid('tblYellow').innerHTML='<tr><th>آئٹم</th><th>مقدار</th><th>فریکوئنسی</th></tr>'+
+    state.zones.yellow.map(r=>`<tr><td>${r.item}</td><td>${r.qty}</td><td>${r.per}</td></tr>`).join('');
+  gid('tblRed').innerHTML='<tr><th>ممنوع اشیاء</th></tr>'+
+    state.zones.red.map(x=>`<tr><td>${x}</td></tr>`).join('');
+}
+function buildShop(){
+  gid('shopList').innerHTML=''
+   + state.shop.biscuits.map(b=>`<li>🍪 ${b}</li>`).join('')
+   + state.shop.snacks.map(s=>`<li>🥨 ${s}</li>`).join('');
+  gid('proteinList').innerHTML=''
+   + state.shop.protein.map(p=>`<li>🍗 ${p}</li>`).join('')
+   + state.shop.oils.map(o=>`<li>🛢️ ${o}</li>`).join('');
+}
+
+/* ===== Labs Table & Chart ===== */
+function renderLabTable(){
+  const t=gid('labTable');
+  if(!state.labs.length){ t.innerHTML='<tr><th>Date</th><th>Values</th></tr><tr><td colspan="2">No data</td></tr>'; return; }
+  const rows=state.labs.map((r,i)=>`<tr>
+    <td contenteditable data-i="${i}" data-k="date">${r.date||''}</td>
+    <td>
+      K: <span contenteditable data-i="${i}" data-k="potassium">${r.potassium??''}</span>
+      | Urea: <span contenteditable data-i="${i}" data-k="urea">${r.urea??''}</span>
+      | BUN: <span contenteditable data-i="${i}" data-k="bun">${r.bun??''}</span>
+      | Cr: <span contenteditable data-i="${i}" data-k="creatinine">${r.creatinine??''}</span>
+      | eGFR: <span contenteditable data-i="${i}" data-k="egfr">${r.egfr??''}</span>
+      | Na: <span contenteditable data-i="${i}" data-k="sodium">${r.sodium??''}</span>
+      | CRP: <span contenteditable data-i="${i}" data-k="crp">${r.crp??''}</span>
+      | Ca: <span contenteditable data-i="${i}" data-k="calcium">${r.calcium??''}</span>
+      <button class="btn danger" data-del="${i}">Delete</button>
+    </td></tr>`);
+  t.innerHTML=`<tr><th>Date</th><th>Details</th></tr>${rows.join('')}`;
+  t.querySelectorAll('[contenteditable]').forEach(el=>{
+    el.onblur=()=>{const i=+el.dataset.i,k=el.dataset.k;const v=el.textContent.trim();state.labs[i][k]=k==='date'?v:(v===''?null:Number(v));saveState();}
+  });
+  t.querySelectorAll('[data-del]').forEach(b=>b.onclick=()=>{state.labs.splice(+b.dataset.del,1);saveState();renderLabTable();refreshDash();});
+}
+let chart, dashChart;
+function drawChart(canvasId, metric){
+  const mapTitle={potassium:'Potassium',urea:'Blood Urea',bun:'BUN',creatinine:'Creatinine',egfr:'eGFR',sodium:'Sodium',crp:'CRP',calcium:'Calcium'};
+  const data=state.labs.filter(r=>r[metric]!=null).sort((a,b)=>new Date(a.date)-new Date(b.date));
+  const labels=data.map(r=>r.date); const values=data.map(r=>Number(r[metric]));
+  const ctx=gid(canvasId).getContext('2d'); if(canvasId==='chart' && chart){chart.destroy()} if(canvasId==='dashChart' && dashChart){dashChart.destroy()}
+  const inst=new Chart(ctx,{type:'line',data:{labels,datasets:[{label:mapTitle[metric],data:values,borderWidth:2,fill:false}]},options:{responsive:true,plugins:{legend:{display:true}},scales:{y:{beginAtZero:false}}}});
+  if(canvasId==='chart') chart=inst; else dashChart=inst;
+}
+gid('plotBtn').onclick=()=>{drawChart('chart',gid('metricPick').value);dietAdviceFromLabs();};
+gid('dashPlot').onclick=()=>drawChart('dashChart',gid('dashMetric').value);
+function dietAdviceFromLabs(){
+  const L=latestLabs(); const box=gid('dietAdvice'); if(!L){box.textContent='';return;}
+  let adv=[]; if(L.potassium>5.0) adv.push('K ↑ : لیموں/دال/کھیرا کم، سبزی ابال کر دیں۔');
+  if(L.urea>50||L.creatinine>1.2) adv.push('Urea/Cr ↑ : پروٹین 30–40g/دن، سوپ پتلا۔');
+  if(L.egfr<20) adv.push('eGFR کم: نمک صفر، پانی ڈاکٹر کے مطابق۔');
+  if(L.sodium<136) adv.push('Na ↓ : پانی کم/ڈاکٹر کے مطابق — نمک پھر بھی ممنوع۔');
+  box.innerHTML = adv.map(a=>`<span class="badge warn">${a}</span>`).join(' ');
+}
+
+/* ===== Dashboard Stats ===== */
+function status(val,low,high,goodUp=true){
+  if(val==null||isNaN(val)) return {cls:'',txt:'—'};
+  if(goodUp){ if(val<low) return {cls:'warn',txt:'↓ Low'}; if(val>high) return {cls:'bad',txt:'↑ High'}; }
+  else { if(val>high) return {cls:'bad',txt:'↓ Poor'}; if(val<low) return {cls:'warn',txt:'↓ Too low'}; }
+  return {cls:'ok',txt:'Normal'};
+}
+function refreshDash(){
+  const L=latestLabs(); const box=gid('stats'); if(!L){box.innerHTML='<div class="muted">No labs yet.</div>'; return;}
+  const items=[
+    {name:'Uric Acid', v:L.uric_acid, low:3.4, high:7.2},
+    {name:'Blood Urea (mg/dL)', v:L.urea, low:10, high:50},
+    {name:'BUN (mg/dL)', v:L.bun, low:6, high:23},
+    {name:'Creatinine (mg/dL)', v:L.creatinine, low:0.6, high:1.2},
+    {name:'eGFR (ml/min/1.73m²)', v:L.egfr, low:60, high:999, goodUp:false},
+    {name:'Sodium (mmol/L)', v:L.sodium, low:136, high:145},
+    {name:'Potassium (mmol/L)', v:L.potassium, low:3.5, high:5.4},
+    {name:'Chloride (mmol/L)', v:L.chloride, low:90, high:110},
+    {name:'CRP (mg/L)', v:L.crp, low:0, high:5},
+    {name:'Calcium (mg/dL)', v:L.calcium, low:8.5, high:10.5}
+  ];
+  box.innerHTML=items.map(it=>{
+    const s=status(Number(it.v),it.low,it.high,it.name!=='eGFR');
+    return `<div class="stat"><div class="name">${it.name}</div><div>${it.v??'—'} <span class="badge ${s.cls}">${s.txt}</span></div><div class="trend">Last date: ${L.date||'—'}</div></div>`;
+  }).join('');
+}
+
+/* ===== Import/Extract ===== */
+const extractRows=[];
+function clearExtractUI(){ gid('extractTable').innerHTML='<tr><th>Date</th><th>Metric</th><th>Value</th></tr>'; }
+clearExtractUI();
+
+gid('runExtract').onclick=async()=>{
+  clearExtractUI();
+  const files=[...gid('filePick').files]; if(!files.length){alert('Select files'); return;}
+  for(const f of files){
+    const ext=(f.name.split('.').pop()||'').toLowerCase();
+    try{
+      if(['xlsx','xls'].includes(ext)) await parseExcel(f);
+      else if(ext==='csv') await parseCSV(f);
+      else if(ext==='txt') await parseTXT(f);
+      else if(ext==='pdf') await parsePDF(f);
+      else if(['png','jpg','jpeg'].includes(ext)) await parseImage(f);
+    }catch(e){ console.error('extract',e); alert('Error parsing '+f.name); }
+  }
+  renderExtractTable();
+};
+
+function renderExtractTable(){
+  const t=gid('extractTable');
+  if(!extractRows.length){ clearExtractUI(); return;}
+  t.innerHTML='<tr><th>Date</th><th>Metric</th><th>Value</th></tr>' +
+    extractRows.map(r=>`<tr><td>${r.date||''}</td><td>${r.key}</td><td>${r.value}</td></tr>`).join('');
+}
+gid('clearExtract').onclick=()=>{extractRows.length=0;renderExtractTable();};
+gid('commitExtract').onclick=()=>{
+  if(!extractRows.length){alert('Nothing to add');return;}
+  // fold rows by date
+  const byDate = {};
+  extractRows.forEach(r=>{
+    const d = r.date || new Date().toISOString().slice(0,10);
+    byDate[d]=byDate[d]||{date:d};
+    byDate[d][r.key]=Number(r.value);
+  });
+  Object.values(byDate).forEach(row=>state.labs.push(row));
+  saveState(); renderLabTable(); refreshDash(); drawChart('dashChart','potassium');
+  alert('Added to Labs');
+  extractRows.length=0; renderExtractTable();
+};
+
+/* ==== Parsers ==== */
+function pushPair(date,key,value){ if(value==null||value==='')return; extractRows.push({date,key,value}); }
+function extractFromText(text){
+  const t = text.replace(/,/g,'').replace(/\s+/g,' ');
+  const dateMatch = t.match(/(\d{4}[-/]\d{2}[-/]\d{2})|(\d{1,2}\s*[A-Za-z]{3,}\s*\d{2,4})/);
+  const date = dateMatch ? new Date(dateMatch[0]).toISOString().slice(0,10) : new Date().toISOString().slice(0,10);
+  function num(re){ const m=t.match(re); return m? parseFloat(m[1]): null; }
+  pushPair(date,'uric_acid', num(/uric\s*acid[^0-9]*([0-9.]+)/i));
+  pushPair(date,'urea',       num(/blood\s*urea(?!\s*nitrogen)[^0-9]*([0-9.]+)/i) || num(/urea[^a-z]*([0-9.]+)/i));
+  pushPair(date,'bun',        num(/(bun|blood\s*urea\s*nitrogen)[^0-9]*([0-9.]+)/i));
+  pushPair(date,'creatinine', num(/creatinine[^0-9]*([0-9.]+)/i));
+  pushPair(date,'egfr',       num(/egfr[^0-9]*([0-9.]+)/i));
+  pushPair(date,'sodium',     num(/sodium[^0-9]*([0-9.]+)/i));
+  pushPair(date,'potassium',  num(/potassium[^0-9]*([0-9.]+)/i));
+  pushPair(date,'chloride',   num(/chloride[^0-9]*([0-9.]+)/i));
+  pushPair(date,'crp',        num(/crp[^0-9]*([0-9.]+)/i));
+  pushPair(date,'calcium',    num(/calcium[^a-z]*([0-9.]+)/i));
+}
+async function parseTXT(f){ const text=await f.text(); extractFromText(text); }
+async function parseCSV(f){
+  const res = await new Promise((ok)=>Papa.parse(f,{header:true,complete:ok}));
+  (res.data||[]).forEach(row=>{
+    const d = row.date||row.Date||row.DATE||new Date().toISOString().slice(0,10);
+    for(const [k,v] of Object.entries(row)){
+      const key = mapKey(k); if(key) pushPair(d,key,v);
+    }
+  });
+}
+async function parseExcel(f){
+  const data = await f.arrayBuffer();
+  const wb = XLSX.read(data,{type:'array'});
+  const ws = wb.Sheets[wb.SheetNames[0]];
+  const rows = XLSX.utils.sheet_to_json(ws,{defval:''});
+  rows.forEach(row=>{
+    const d = row.date||row.Date||row['Report Date']||new Date().toISOString().slice(0,10);
+    Object.entries(row).forEach(([k,v])=>{
+      const key = mapKey(k); if(key) pushPair(d,key,v);
+    });
+  });
+}
+async function parsePDF(f){
+  const buf=new Uint8Array(await f.arrayBuffer());
+  const pdf=await pdfjsLib.getDocument({data:buf}).promise;
+  let text=''; for(let i=1;i<=pdf.numPages;i++){ const page=await pdf.getPage(i); const c=await page.getTextContent(); text+=c.items.map(it=>it.str).join(' ')+' '; }
+  extractFromText(text);
+}
+async function parseImage(f){
+  const { data:{ text } } = await Tesseract.recognize(f,'eng');
+  extractFromText(text);
+}
+function mapKey(k){
+  const s=(k+'').toLowerCase();
+  if(s.includes('uric')) return 'uric_acid';
+  if(s.includes('blood urea nitrogen')||s==='bun'||s.includes('bun')) return 'bun';
+  if(s.includes('urea')) return 'urea';
+  if(s.includes('creatin')) return 'creatinine';
+  if(s.includes('egfr')) return 'egfr';
+  if(s.includes('sodium')||s==='na') return 'sodium';
+  if(s.includes('potassium')||s==='k') return 'potassium';
+  if(s.includes('chloride')||s==='cl') return 'chloride';
+  if(s.includes('crp')) return 'crp';
+  if(s.includes('calcium')) return 'calcium';
+  if(s.includes('uric')) return 'uric_acid';
+  return null;
+}
+
+/* ===== Manage: Add/Edit Recipes ===== */
+function renderRecipeTable(){
+  const t=gid('recipeTable');
+  const rows=state.recipes.map((r,i)=>`<tr>
+    <td contenteditable data-i="${i}" data-k="nameUr">${r.nameUr}</td>
+    <td contenteditable data-i="${i}" data-k="meal">${r.meal}</td>
+    <td contenteditable data-i="${i}" data-k="zone">${r.zone}</td>
+    <td contenteditable data-i="${i}" data-k="perWeekMax">${r.perWeekMax||''}</td>
+    <td contenteditable data-i="${i}" data-k="ingredients">${r.ingredients.join(' | ')}</td>
+    <td contenteditable data-i="${i}" data-k="tags">${(r.tags||[]).join(',')}</td>
+    <td><button class="btn danger" data-del="${i}">Delete</button></td>
+  </tr>`);
+  t.innerHTML=`<tr><th>نام (اردو)</th><th>Meal</th><th>Zone</th><th>Max/wk</th><th>Ingredients</th><th>Tags</th><th>—</th></tr>${rows.join('')}`;
+  t.querySelectorAll('[contenteditable]').forEach(el=>{
+    el.onblur=()=>{const i=+el.dataset.i,k=el.dataset.k,v=el.textContent.trim();
+      if(k==='ingredients') state.recipes[i][k]=v.split('|').map(s=>s.trim()).filter(Boolean);
+      else if(k==='perWeekMax') state.recipes[i][k]=Number(v)||null;
+      else state.recipes[i][k]=v; saveState();
+    };
+  });
+  t.querySelectorAll('[data-del]').forEach(b=>b.onclick=()=>{state.recipes.splice(+b.dataset.del,1); saveState(); renderRecipeTable();});
+}
+gid('addRecipe').onclick=()=>{
+  const r={id:'r'+Date.now(), meal:gid('rMeal').value, zone:gid('rZone').value,
+    perWeekMax:Number(gid('rPerWeek').value)||null, nameUr:gid('rNameUr').value||'ریسپی',
+    nameEn:gid('rNameEn').value||'Recipe', tags:(gid('rTags').value||'').split(',').map(s=>s.trim()).filter(Boolean),
+    ingredients:(gid('rIngr').value||'').split('\n').map(s=>s.trim()).filter(Boolean)};
+  state.recipes.push(r); saveState(); renderRecipeTable(); alert('Recipe added');
+  ['rNameUr','rNameEn','rTags','rIngr'].forEach(id=>gid(id).value='');
+};
+gid('saveAll').onclick=()=>{ saveState(); alert('Saved'); };
+gid('resetAll').onclick=()=>{ if(confirm('Reset to defaults?')){ state=JSON.parse(JSON.stringify(defaults)); saveState(); buildZoneTables(); buildShop(); renderRecipeTable(); renderFilters(); refreshAll(); } };
+
+/* ===== Settings ===== */
+gid('applyTheme').onclick=()=>{
+  document.documentElement.style.setProperty('--accent', gid('accentPick').value);
+  document.documentElement.style.setProperty('--bg', gid('bgPick').value);
+  const url = gid('bgImg').value.trim();
+  document.body.style.backgroundImage = url ? `url('${url}')` : 'none';
+  document.body.style.backgroundSize='cover';
+};
+gid('exportJSON').onclick=()=>{
+  const dataStr="data:text/json;charset=utf-8,"+encodeURIComponent(JSON.stringify(state));
+  const a=document.createElement('a'); a.href=dataStr; a.download='ckd_planner_data.json'; a.click();
+};
+gid('importJSON').onchange=async(e)=>{
+  const f=e.target.files[0]; if(!f) return;
+  const txt=await f.text(); try{ state=JSON.parse(txt); saveState(); alert('Imported'); }catch{ alert('Invalid JSON'); }
+};
+gid('langToggle').onchange=(e)=>{
+  const ur=e.target.checked; gid('langLbl').textContent=ur?'اردو':'English';
+  document.documentElement.setAttribute('dir', ur?'rtl':'ltr');
+};
+
+/* ===== Dashboard build ===== */
+function refreshAll(){
+  renderFilters(); buildZoneTables(); buildShop();
+  refreshLabHint(); renderLabTable(); refreshDash(); renderRecipes(filterRecipes());
+}
+refreshAll();
+
+/* ===== Demo: preload latest example (optional) ===== */
+/* Example based on your screenshot (18-Aug-2025) — you can delete */
+if(!state.labs.length){
+  state.labs.push({date:'2025-08-18', uric_acid:3.7, urea:89, bun:41.6, creatinine:3.30, egfr:20, sodium:136, potassium:4.8, chloride:96});
+  state.labs.push({date:'2025-08-03', uric_acid:5.4, urea:85, bun:40, creatinine:3.77, egfr:17, sodium:132, potassium:5.0, chloride:93});
+  saveState();
+}
+</script>
+
+<script>
+window.addEventListener('error', function(e){
+  if((e.filename||'').includes('cdn') || (e.message||'').includes('Script error')){
+    /* offline */
+  }
+});
+</script>
+
+</body>
+</html>
